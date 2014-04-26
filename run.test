@@ -1,0 +1,35 @@
+#!/bin/bash
+
+if [ -n "$1" ];then
+	
+	case $1 in
+		vm0)
+			MAC='DE:AD:BE:EF:12:03';;
+		vm1)
+			MAC='DE:AD:BE:EF:12:04';;
+		vm2)
+			MAC='DE:AD:BE:EF:12:05';;
+		vm3)
+			MAC='DE:AD:BE:EF:12:06';;
+		vm4)
+			MAC='DE:AD:BE:EF:12:07';;
+		*)
+			echo "Usage: $0 vm{0|1|2|3|4}"
+			exit 1
+	esac
+
+	echo "starting $1"
+
+	qemu-system-x86_64 --nographic \
+		-M pc \
+		-no-reboot \
+		-kernel ./images/linuximage \
+		-hda ./images/hd.img.qcow2 \
+		-device e1000,netdev=net0,mac=$MAC -netdev tap,id=net0,script=qemu-ifup.sh \
+		-m 256 \
+		-loadvm $1 \
+		-append "root=/dev/sda1 rw console=ttyS0,115200 debug"
+		#-redir tcp:${TELNET_EXTERNAL_PORT}:${PLATFORM_IP}:${TELNET_INTERNAL_PORT} \
+else
+	echo "error: need name for vm snapshot"
+fi
