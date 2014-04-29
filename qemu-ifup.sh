@@ -1,6 +1,4 @@
 #!/bin/sh
-set -x
-
 switch=br0
 sudo ovs-vsctl del-port br0 $1
 

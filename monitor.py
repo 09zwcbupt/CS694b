@@ -1,5 +1,6 @@
 import os
 import signal
+from time import sleep
 from select import poll, POLLIN
 from subprocess import call, check_call, Popen, PIPE, STDOUT
 
@@ -44,23 +45,13 @@ def write( shell, data ):
     os.write( shell.stdin.fileno(), data )
     waiting = True
 
-def sendInt( shellf, sig=signal.SIGINT ):
-    "Interrupt running command."
-    global lastPid
-    if lastPid:
-        print lastPid
-        try:
-            os.kill( lastPid, sig )
-        except OSError:
-            pass
-
-def readall(shell):
+def readall(shell, timeout):
     global waiting
     data = ''
     nodePoller = poll()
     nodePoller.register(shell.stdout, POLLIN)
     while waiting:
-        event = nodePoller.poll(50)
+        event = nodePoller.poll(timeout)
         if event == []:
             waiting = False
         for fd, flag in event:
@@ -72,7 +63,25 @@ def readall(shell):
 if __name__ == '__main__':
     shell = Popen( '/bin/bash', stdin=PIPE, stdout=PIPE, stderr=STDOUT, close_fds=True )
     #print shell.stdin.fileno()
-    write(shell, 'ps ax\n')
-    result = readall(shell)
+    write(shell, './run.test vm0\n')
+    result = readall(shell, 1000)
     print result
+    sleep(0.3)
+    write(shell, 'ifconfig\n')
+    result = readall(shell, 200)
+    print result
+    while True:
+        try:
+            sleep(2)
+            write(shell, "top -b -n 1 | grep 'CPU:' | awk '{print $2}' | sed -n '1p'\n")
+            result = readall(shell, 90)
+            pos = result.find( '%' )
+            if (pos != -1):
+                print result[:pos]
+            result = ''
+        except KeyboardInterrupt:
+            print 'cleaning up ' + str(shell.pid) + '\n'
+            shell.terminate()
+            break
+    #os.kill(lastPid, signal.SIGINT)
     #print 'done \n'
