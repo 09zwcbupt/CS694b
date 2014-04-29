@@ -1,3 +1,5 @@
+#!/bin/python
+
 import os
 import signal
 from time import sleep
@@ -60,10 +62,24 @@ def readall(shell, timeout):
                 data += read(shell)
     return data
 
+def get_vm_cmd(shell_list):
+    print 'starting vm'+str(len(shell_list))
+    return './run vm'+str(len(shell_list))+'\n'
+
+def get_vm_name(shell, name_dict):
+    return name_dict[shell.pid]
+
 if __name__ == '__main__':
+    shell_list = []# bash<->vm
+    shell_stat = {}# key:shell obj, value: high usage/no response
+    vm_name = {}
+    new_vm = None
+    # run the first VM
     shell = Popen( '/bin/bash', stdin=PIPE, stdout=PIPE, stderr=STDOUT, close_fds=True )
-    #print shell.stdin.fileno()
-    write(shell, './run.test vm0\n')
+    write(shell, get_vm_cmd(shell_list))
+    shell_list.append(shell)
+    shell_stat[shell] = 0#time of high usage/no response
+    vm_name[shell.pid] = 'vm0'
     result = readall(shell, 1000)
     print result
     sleep(0.3)
@@ -72,16 +88,39 @@ if __name__ == '__main__':
     print result
     while True:
         try:
+            print '\n-----------------------------------'
+            if (new_vm != None):
+                # new vm on line, put it in list/dict
+                vm_name[new_vm.pid]= 'vm'+str(len(shell_list))
+                shell_list.append(new_vm)
+                shell_stat[new_vm] = 0
+                write(new_vm, 'ifconfig\n')
+                result = readall(new_vm, 2000)
+                print result
+                new_vm=None
             sleep(2)
-            write(shell, "top -b -n 1 | grep 'CPU:' | awk '{print $2}' | sed -n '1p'\n")
-            result = readall(shell, 90)
-            pos = result.find( '%' )
-            if (pos != -1):
-                print result[:pos]
-            result = ''
+            for shell in shell_list:
+                write(shell, "top -b -n 1 | grep 'CPU:' | awk '{print $2}' | sed -n '1p'\n")
+                result = readall(shell, 10)
+                pos = result.find( '%' )
+                if (pos != -1):
+                    if(pos-4>0 and result[pos-4]=='\n'): print get_vm_name(shell,vm_name), result[pos-3:pos]
+                    else: print get_vm_name(shell, vm_name), result[0 if (pos-4<0) else pos-4:pos]
+                    shell_stat[shell] = 0
+                else:
+                    shell_stat[shell]+=1
+                    if(shell_stat[shell]>2):
+                        #allocate new VM
+                        new_vm = Popen( '/bin/bash', stdin=PIPE, stdout=PIPE, stderr=STDOUT, close_fds=True )
+                        write(new_vm, get_vm_cmd(shell_list))
+                    print get_vm_name(shell, vm_name), 'miss'
+                result = ''
         except KeyboardInterrupt:
-            print 'cleaning up ' + str(shell.pid) + '\n'
-            shell.terminate()
+            for shell in shell_list:
+                print 'cleaning up ' + str(shell.pid)
+                shell.terminate()
+            if new_vm != None:
+                new_vm.terminate()
             break
     #os.kill(lastPid, signal.SIGINT)
     #print 'done \n'
