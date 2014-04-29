@@ -22,12 +22,14 @@ if [ -n "$1" ];then
 
 	qemu-system-x86_64 --nographic \
 		-M pc \
+		-no-kvm \
 		-no-reboot \
 		-kernel ./images/linuximage \
 		-hda ./images/hd.img.qcow2 \
-		-device e1000,netdev=net0,mac=$MAC -netdev tap,id=net0,script=qemu-ifup.sh \
 		-m 256 \
 		-loadvm $1 \
+		-device e1000,netdev=net0,mac=$MAC -netdev tap,id=net0,script=qemu-ifup.sh \
+		-rtc base=localtime,clock=vm,driftfix=slew \
 		-append "root=/dev/sda1 rw console=ttyS0,115200 debug"
 		#-redir tcp:${TELNET_EXTERNAL_PORT}:${PLATFORM_IP}:${TELNET_INTERNAL_PORT} \
 else
